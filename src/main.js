@@ -6,66 +6,94 @@ const copyBtn = document.getElementById('copy-btn');
 const tabs = document.querySelectorAll('.tab');
 
 let currentFile = null;
+let currentBuffer = null;
 let currentLang = 'c';
 
-// --- Hex 변환 로직 ---
-
-const formatHex = (buffer, lang, fileName) => {
-  const bytes = new Uint8Array(buffer);
-  const hexValues = Array.from(bytes).map(b => `0x${b.toString(16).padStart(2, '0')}`);
-  const cleanName = fileName.replace(/[^a-zA-Z0-9]/g, '_');
-
-  switch (lang) {
-    case 'c':
-      return `// 파일: ${fileName}\nunsigned char ${cleanName}_data[] = {\n  ${wrapLines(hexValues, 12)}\n};`;
-    case 'kotlin':
-      const ktValues = Array.from(bytes).map(b => `0x${b.toString(16).padStart(2, '0')}.toByte()`);
-      return `// 파일: ${fileName}\nval ${cleanName}Data = byteArrayOf(\n  ${wrapLines(ktValues, 6)}\n)`;
-    case 'python':
-      return `# 파일: ${fileName}\n${cleanName}_data = bytes([\n  ${wrapLines(hexValues, 12)}\n])`;
-    default:
-      return '';
+/**
+ * 언어별 포맷 구성
+ */
+const LANG_CONFIG = {
+  c: {
+    comment: '//',
+    template: (name, hex) => `unsigned char ${name}_data[] = {\n  ${hex}\n};`,
+    perLine: 12,
+    transform: b => `0x${b.toString(16).padStart(2, '0')}`
+  },
+  kotlin: {
+    comment: '//',
+    template: (name, hex) => `val ${name}Data = byteArrayOf(\n  ${hex}\n)`,
+    perLine: 6,
+    transform: b => `0x${b.toString(16).padStart(2, '0')}.toByte()`
+  },
+  python: {
+    comment: '#',
+    template: (name, hex) => `${name}_data = bytes([\n  ${hex}\n])`,
+    perLine: 12,
+    transform: b => `0x${b.toString(16).padStart(2, '0')}`
   }
 };
 
-const wrapLines = (items, perLine) => {
-  let result = '';
-  for (let i = 0; i < items.length; i++) {
-    result += items[i];
-    if (i < items.length - 1) {
-      result += ', ';
-      if ((i + 1) % perLine === 0) {
-        result += '\n  ';
+/**
+ * 바이트 배열을 포맷된 문자열로 변환 (최적화 버전)
+ */
+const formatHex = (buffer, lang, fileName) => {
+  if (!buffer) return '';
+
+  const config = LANG_CONFIG[lang];
+  const bytes = new Uint8Array(buffer);
+  const cleanName = fileName.replace(/[^a-zA-Z0-9]/g, '_');
+
+  let hexBody = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hexBody += config.transform(bytes[i]);
+
+    if (i < bytes.length - 1) {
+      hexBody += ', ';
+      if ((i + 1) % config.perLine === 0) {
+        hexBody += '\n  ';
       }
     }
   }
-  return result;
+
+  return `${config.comment} 파일: ${fileName}\n${config.template(cleanName, hexBody)}`;
 };
 
-// --- 이벤트 핸들러 ---
+/**
+ * 파일 처리 및 결과 출력
+ */
+const updateOutput = () => {
+  if (!currentBuffer || !currentFile) return;
+  output.value = formatHex(currentBuffer, currentLang, currentFile.name);
+};
 
 const processFile = async (file) => {
   if (!file) return;
   currentFile = file;
   fileNameDisplay.textContent = file.name;
 
-  const buffer = await file.arrayBuffer();
-  output.value = formatHex(buffer, currentLang, file.name);
+  // 버퍼 캐싱으로 탭 전환 시 중복 로드 방지
+  currentBuffer = await file.arrayBuffer();
+  updateOutput();
 };
 
-// 드래그 앤 드롭
+// --- 이벤트 핸들러 ---
+
+// 드래그 앤 드롭 시각적 피드백 통합 제어
+const toggleDragState = (isDragging) => {
+  dropZone.classList.toggle('dragging', isDragging);
+};
+
 dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
-  dropZone.classList.add('dragging');
+  toggleDragState(true);
 });
 
-dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('dragging');
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, () => toggleDragState(false));
 });
 
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
-  dropZone.classList.remove('dragging');
   const file = e.dataTransfer.files[0];
   processFile(file);
 });
@@ -73,36 +101,38 @@ dropZone.addEventListener('drop', (e) => {
 dropZone.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  processFile(file);
+  processFile(e.target.files[0]);
 });
 
-// 언어 선택 탭
+// 언어 선택 탭 (이벤트 위임 고려 가능하나 현재는 개별 등록 유지)
 tabs.forEach(tab => {
-  tab.addEventListener('click', async () => {
+  tab.addEventListener('click', () => {
+    if (tab.classList.contains('active')) return;
+
     tabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     currentLang = tab.dataset.lang;
-
-    if (currentFile) {
-      const buffer = await currentFile.arrayBuffer();
-      output.value = formatHex(buffer, currentLang, currentFile.name);
-    }
+    updateOutput();
   });
 });
 
 // 클립보드 복사
-copyBtn.addEventListener('click', () => {
-  if (!output.value) return;
+copyBtn.addEventListener('click', async () => {
+  const text = output.value;
+  if (!text) return;
 
-  navigator.clipboard.writeText(output.value).then(() => {
+  try {
+    await navigator.clipboard.writeText(text);
     const originalText = copyBtn.textContent;
     copyBtn.textContent = '복사 완료!';
+    copyBtn.classList.add('success-state'); // CSS 스타일 추가 권장
     copyBtn.style.background = 'var(--success)';
 
     setTimeout(() => {
       copyBtn.textContent = originalText;
-      copyBtn.style.background = 'var(--primary)';
+      copyBtn.style.background = ''; // 기존 CSS로 복구
     }, 2000);
-  });
+  } catch (err) {
+    console.error('클립보드 복사 실패:', err);
+  }
 });
