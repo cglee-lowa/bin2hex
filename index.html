@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bin2Hex Converter | Professional Developer Tools</title>
+  <meta name="description"
+    content="Convert any file to hexadecimal arrays for C, Kotlin, and Python with a single click. Professional developer tool with premium UI." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <div class="container">
+    <h1>Bin2Hex 변환기</h1>
+    <p class="subtitle">파일 내용을 프로그래밍 언어용 16진수 배열로 변환하세요</p>
+
+    <div id="drop-zone" class="upload-area">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 1rem; color: var(--primary);">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+      <p>파일을 이 곳에 드래그하거나 <span style="color: var(--primary); font-weight: 600;">클릭하여 선택</span>하세요</p>
+      <input type="file" id="file-input" style="display: none;" />
+    </div>
+
+    <div class="controls">
+      <button class="tab active" data-lang="c">C</button>
+      <button class="tab" data-lang="kotlin">Kotlin</button>
+      <button class="tab" data-lang="python">Python</button>
+    </div>
+
+    <div class="output-container">
+      <div class="output-header">
+        <span id="file-name" style="font-size: 0.9rem; color: var(--text-dim);">선택된 파일 없음</span>
+        <button id="copy-btn">클립보드 복사</button>
+      </div>
+      <textarea id="output" readonly placeholder="변환 결과가 여기에 표시됩니다..."></textarea>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
